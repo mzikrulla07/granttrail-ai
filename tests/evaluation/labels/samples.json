@@ -1,0 +1,38 @@
+[
+  {
+    "file": "samples/sample-01-cedar-hollow-clean.pdf",
+    "notes": "Fictional sample. Clean, well-labelled agreement. Expect high confidence and PASS/WARNING validation.",
+    "expected": {
+      "subrecipientName": "Cedar Hollow Family Housing Alliance",
+      "uei": "CH3W8N5KTR27",
+      "amount": "$176,400.00",
+      "awardDate": "August 16, 2026",
+      "placeOfPerformance": "Cedar Hollow, OH 45115",
+      "projectDescription": "Provide permanent supportive housing and wraparound services for 30 households with a disabled head of household who have experienced chronic homelessness."
+    }
+  },
+  {
+    "file": "samples/sample-02-lantern-house-bad-uei.pdf",
+    "notes": "Fictional sample. UEI contains the letter \"I\" (invalid). Expect a blocking UEI error until corrected.",
+    "expected": {
+      "subrecipientName": "Lantern House Recovery Residences",
+      "uei": "LH7I2Q9MXV51",
+      "amount": "$58,000.00",
+      "awardDate": "August 16, 2026",
+      "placeOfPerformance": "Riverbend, OH 45104",
+      "projectDescription": "Operate recovery-oriented transitional residences with peer mentoring and employment readiness services for adults leaving homelessness."
+    }
+  },
+  {
+    "file": "samples/sample-03-fairview-missing-fields.pdf",
+    "notes": "Fictional sample. Narrative agreement with no UEI, no amount and vague location. Expect missing-field errors and low confidence.",
+    "expected": {
+      "subrecipientName": "Fairview Neighborhood Housing Services",
+      "uei": null,
+      "amount": null,
+      "awardDate": "September 1, 2026",
+      "placeOfPerformance": "the Fairview district",
+      "projectDescription": "The Subrecipient will provide housing search assistance and security-deposit support to households exiting emergency shelter."
+    }
+  }
+]

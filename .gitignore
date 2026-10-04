@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Environment / secrets — never commit real values
+.env
+.env.*
+!.env.example
+
+# Local development data (embedded database, uploaded agreements)
+/.data/
+/storage/
+
+# Evaluation inputs may contain real agreements — keep them out of git
+tests/evaluation/agreements/*
+!tests/evaluation/agreements/.gitkeep
+tests/evaluation/reports/*
+!tests/evaluation/reports/.gitkeep
+
+# Logs / OS / editor
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+coverage/
+
+# Elastic Beanstalk bundle (built in CI)
+deploy-bundle/
+granttrail-eb.zip

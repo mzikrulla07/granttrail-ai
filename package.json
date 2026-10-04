@@ -1,0 +1,33 @@
+{
+  "name": "granttrail-ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "GrantTrail AI — Subaward Reporting Assistant for Riverbend Housing Coalition (fictional). AI extracts. Code validates. Humans approve.",
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n server,client -c blue,green \"npm run dev -w server\" \"npm run dev -w client\"",
+    "build": "npm run build -w server && npm run build -w client",
+    "start": "npm run start -w server",
+    "typecheck": "npm run typecheck -w server && npm run typecheck -w client && tsc -p tests/tsconfig.json --noEmit",
+    "db:migrate": "npm run db:migrate -w server",
+    "db:seed": "npm run db:seed -w server",
+    "db:reset": "npm run db:reset -w server",
+    "samples": "npm run samples -w server",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "eval": "npm run eval -w server"
+  },
+  "devDependencies": {
+    "@types/supertest": "^6.0.3",
+    "concurrently": "^9.2.1",
+    "supertest": "^7.1.4",
+    "typescript": "~5.9.3",
+    "vitest": "^5.0.2"
+  },
+  "engines": {
+    "node": ">=20.16.0"
+  }
+}

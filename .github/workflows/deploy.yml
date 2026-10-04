@@ -1,0 +1,118 @@
+# Auto-deploy GrantTrail AI to AWS Elastic Beanstalk on every push to main.
+#
+# Security: no AWS keys are stored in GitHub. The workflow signs in to AWS with
+# GitHub's OIDC token and assumes an IAM role that only trusts the main branch
+# of this repository (created by scripts/setup-aws.ps1).
+name: Deploy to Elastic Beanstalk
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write # required for OIDC sign-in to AWS
+  contents: read
+
+concurrency:
+  group: eb-deploy
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ROLE_ARN: arn:aws:iam::949440752963:role/granttrail-github-deploy
+  EB_APP: GrantTrail-AI
+  EB_ENV: GrantTrail-AI-env
+
+jobs:
+  test-build-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Run tests (deploy is skipped if any test fails)
+        run: npm test
+
+      - name: Build frontend + server
+        run: npm run build
+
+      - name: Package Elastic Beanstalk bundle
+        run: bash scripts/build-eb-bundle.sh
+
+      - name: Sign in to AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Upload new application version
+        id: version
+        run: |
+          set -euo pipefail
+          VERSION="gh-${GITHUB_SHA::7}-run${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
+          BUCKET=$(aws elasticbeanstalk create-storage-location --query S3Bucket --output text)
+          KEY="$EB_APP/$VERSION.zip"
+          aws s3 cp granttrail-eb.zip "s3://$BUCKET/$KEY" --only-show-errors
+          DESC=$(git log -1 --pretty=%s | tr -d '"' | cut -c1-180)
+          aws elasticbeanstalk create-application-version \
+            --application-name "$EB_APP" --version-label "$VERSION" \
+            --description "$DESC" \
+            --source-bundle "S3Bucket=$BUCKET,S3Key=$KEY" --process > /dev/null
+          for i in $(seq 1 30); do
+            STATUS=$(aws elasticbeanstalk describe-application-versions --application-name "$EB_APP" \
+              --version-labels "$VERSION" --query 'ApplicationVersions[0].Status' --output text)
+            echo "Version status: $STATUS"
+            [ "$STATUS" = "PROCESSED" ] && break
+            [ "$STATUS" = "FAILED" ] && { echo "::error::Bundle validation failed"; exit 1; }
+            sleep 5
+          done
+          echo "label=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy to environment
+        run: |
+          set -euo pipefail
+          aws elasticbeanstalk update-environment --environment-name "$EB_ENV" \
+            --version-label "${{ steps.version.outputs.label }}" > /dev/null
+          echo "Deploying ${{ steps.version.outputs.label }} …"
+          for i in $(seq 1 90); do
+            read -r STATUS HEALTH LABEL < <(aws elasticbeanstalk describe-environments --environment-names "$EB_ENV" \
+              --query 'Environments[0].[Status,Health,VersionLabel]' --output text)
+            echo "  status=$STATUS health=$HEALTH version=$LABEL"
+            if [ "$STATUS" = "Ready" ] && [ "$LABEL" = "${{ steps.version.outputs.label }}" ]; then break; fi
+            sleep 10
+          done
+
+      - name: Verify the live site
+        run: |
+          set -euo pipefail
+          CNAME=$(aws elasticbeanstalk describe-environments --environment-names "$EB_ENV" \
+            --query 'Environments[0].CNAME' --output text)
+          URL="http://$CNAME"
+          for i in $(seq 1 30); do
+            if curl -fsS "$URL/api/health" > health.json; then break; fi
+            sleep 10
+          done
+          cat health.json; echo
+          grep -q '"status":"ok"' health.json
+          curl -fsS "$URL/" | grep -q '<div id="root">'
+          HEALTH=$(aws elasticbeanstalk describe-environments --environment-names "$EB_ENV" \
+            --query 'Environments[0].Health' --output text)
+          echo "### Deployed ✅" >> "$GITHUB_STEP_SUMMARY"
+          echo "Live URL: $URL — environment health: $HEALTH" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$HEALTH" = "Red" ]; then
+            aws elasticbeanstalk describe-events --environment-name "$EB_ENV" --max-items 15 \
+              --query 'Events[].[EventDate,Severity,Message]' --output text
+            echo "::error::Environment health is Red"; exit 1
+          fi

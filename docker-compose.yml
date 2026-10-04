@@ -1,0 +1,39 @@
+# Local production-like stack: PostgreSQL 16 + the GrantTrail container.
+#   docker compose up --build   →  http://localhost:3001
+# NODE_ENV is "development" here only so the demo users (AUTH_MODE=dev) work
+# without Cognito. Real deployments use NODE_ENV=production + AUTH_MODE=cognito.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: granttrail
+      POSTGRES_USER: granttrail
+      POSTGRES_PASSWORD: granttrail-local-only
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U granttrail']
+      interval: 5s
+      retries: 10
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - '3001:3001'
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgres://granttrail:granttrail-local-only@db:5432/granttrail
+      AI_MODE: auto
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      STORAGE_DRIVER: local
+      LOCAL_STORAGE_DIR: /tmp/granttrail-uploads
+      AUTH_MODE: dev
+      CLIENT_ORIGIN: http://localhost:3001
+
+volumes:
+  pgdata:

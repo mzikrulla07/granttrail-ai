@@ -1,0 +1,46 @@
+{
+  "_comment": "Example only. Replace ACCOUNT_ID, REGION, and ARNs. Secrets come from AWS Secrets Manager — never plain environment values.",
+  "family": "granttrail-ai",
+  "requiresCompatibilities": ["FARGATE"],
+  "networkMode": "awsvpc",
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/granttrail-ecs-execution",
+  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/granttrail-ecs-task",
+  "runtimePlatform": { "operatingSystemFamily": "LINUX", "cpuArchitecture": "X86_64" },
+  "containerDefinitions": [
+    {
+      "name": "granttrail-ai",
+      "image": "ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com/granttrail-ai:latest",
+      "essential": true,
+      "readonlyRootFilesystem": true,
+      "portMappings": [{ "containerPort": 3001, "protocol": "tcp" }],
+      "environment": [
+        { "name": "NODE_ENV", "value": "production" },
+        { "name": "AUTH_MODE", "value": "cognito" },
+        { "name": "COGNITO_USER_POOL_ID", "value": "REGION_xxxxxxxxx" },
+        { "name": "COGNITO_CLIENT_ID", "value": "xxxxxxxxxxxxxxxxxxxxxxxxxx" },
+        { "name": "STORAGE_DRIVER", "value": "s3" },
+        { "name": "S3_BUCKET", "value": "granttrail-agreements-prod" },
+        { "name": "S3_KMS_KEY_ID", "value": "arn:aws:kms:REGION:ACCOUNT_ID:key/xxxxxxxx" },
+        { "name": "AWS_REGION", "value": "REGION" },
+        { "name": "DATABASE_SSL", "value": "true" },
+        { "name": "AUTO_SEED", "value": "false" },
+        { "name": "AI_MODE", "value": "claude" },
+        { "name": "NODE_EXTRA_CA_CERTS", "value": "/app/certs/rds-global-bundle.pem" }
+      ],
+      "secrets": [
+        { "name": "DATABASE_URL", "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:granttrail/database-url" },
+        { "name": "ANTHROPIC_API_KEY", "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:granttrail/anthropic-api-key" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/granttrail-ai",
+          "awslogs-region": "REGION",
+          "awslogs-stream-prefix": "app"
+        }
+      }
+    }
+  ]
+}

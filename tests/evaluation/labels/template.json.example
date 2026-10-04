@@ -1,0 +1,26 @@
+[
+  {
+    "file": "tests/evaluation/agreements/agreement-01.pdf",
+    "notes": "Standard template, 3 pages",
+    "expected": {
+      "subrecipientName": "Example Partner Agency, Inc.",
+      "uei": "AB12CD34EF56",
+      "amount": "$125,000.00",
+      "awardDate": "March 3, 2026",
+      "placeOfPerformance": "Riverbend, OH 45101",
+      "projectDescription": "Operate an emergency shelter with case management services."
+    }
+  },
+  {
+    "file": "tests/evaluation/agreements/agreement-02.pdf",
+    "notes": "Amendment — UEI not present in document",
+    "expected": {
+      "subrecipientName": "Second Example Organization",
+      "uei": null,
+      "amount": "$48,500.00",
+      "awardDate": "2026-04-17",
+      "placeOfPerformance": "Pine Ridge, OH 45160",
+      "projectDescription": "Provide rapid rehousing assistance to families."
+    }
+  }
+]
