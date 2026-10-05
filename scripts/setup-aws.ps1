@@ -120,7 +120,7 @@ if ($envStatus -and $envStatus -ne "None") {
   {"Namespace":"aws:ec2:instances","OptionName":"InstanceTypes","Value":"t3.micro"},
   {"Namespace":"aws:autoscaling:launchconfiguration","OptionName":"IamInstanceProfile","Value":"$ec2Role"},
   {"Namespace":"aws:autoscaling:launchconfiguration","OptionName":"DisableIMDSv1","Value":"true"},
-  {"Namespace":"aws:elasticbeanstalk:healthreporting:system","OptionName":"SystemType","Value":"enhanced"},
+  {"Namespace":"aws:elasticbeanstalk:healthreporting:system","OptionName":"SystemType","Value":"basic"},
   {"Namespace":"aws:elasticbeanstalk:managedactions","OptionName":"ManagedActionsEnabled","Value":"false"}
 ]
 "@
@@ -139,8 +139,16 @@ if ((AwsTry iam get-open-id-connect-provider --open-id-connect-provider-arn $oid
   Ok "GitHub OIDC provider added to your account"
 } else { Ok "GitHub OIDC provider already present" }
 
+# GitHub's OIDC "sub" claim: older repos use "repo:owner/name:ref:...", repos created after
+# July 2026 use the immutable "repo:owner@<repo id>:ref:...". Trust both (main branch only).
+$subs = @("repo:$GitHubUser/${RepoName}:ref:refs/heads/main")
+try {
+  $repoId = (Invoke-RestMethod -Uri "https://api.github.com/repos/$GitHubUser/$RepoName" -TimeoutSec 15).id
+  if ($repoId) { $subs += "repo:*@${repoId}:ref:refs/heads/main" }
+} catch { Write-Host "    (repo not on GitHub yet - re-run this script after the first push to add its ID)" -ForegroundColor Yellow }
+$subJson = ($subs | ForEach-Object { '"' + $_ + '"' }) -join ","
 $trust = WriteJson "gh-trust.json" @"
-{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Federated":"$oidcArn"},"Action":"sts:AssumeRoleWithWebIdentity","Condition":{"StringEquals":{"token.actions.githubusercontent.com:aud":"sts.amazonaws.com","token.actions.githubusercontent.com:sub":"repo:$GitHubUser/${RepoName}:ref:refs/heads/main"}}}]}
+{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Federated":"$oidcArn"},"Action":"sts:AssumeRoleWithWebIdentity","Condition":{"StringEquals":{"token.actions.githubusercontent.com:aud":"sts.amazonaws.com"},"StringLike":{"token.actions.githubusercontent.com:sub":[$subJson]}}}]}
 "@
 if ((AwsTry iam get-role --role-name $RoleName).Code -ne 0) {
   AwsMust iam create-role --role-name $RoleName --assume-role-policy-document $trust --description "GitHub Actions deploy for $GitHubUser/$RepoName (main branch only)" | Out-Null
