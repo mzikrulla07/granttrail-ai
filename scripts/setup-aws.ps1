@@ -76,13 +76,17 @@ if ((AwsTry iam get-instance-profile --instance-profile-name $ec2Role).Code -ne 
 Ok "instance profile $ec2Role"
 
 $svcRole = "aws-elasticbeanstalk-service-role"
+# Always (re)apply the standard trust policy: a pre-existing role with a different trust
+# policy makes EB suspend health monitoring ("Unable to assume role" -> Grey health).
+$trust = WriteJson "svc-trust.json" '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"elasticbeanstalk.amazonaws.com"},"Action":"sts:AssumeRole","Condition":{"StringEquals":{"sts:ExternalId":"elasticbeanstalk"}}}]}'
 if ((AwsTry iam get-role --role-name $svcRole).Code -ne 0) {
-  $trust = WriteJson "svc-trust.json" '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"elasticbeanstalk.amazonaws.com"},"Action":"sts:AssumeRole","Condition":{"StringEquals":{"sts:ExternalId":"elasticbeanstalk"}}}]}'
   AwsMust iam create-role --role-name $svcRole --assume-role-policy-document $trust | Out-Null
-  AwsMust iam attach-role-policy --role-name $svcRole --policy-arn arn:aws:iam::aws:policy/service-role/AWSElasticBeanstalkEnhancedHealth | Out-Null
-  AwsMust iam attach-role-policy --role-name $svcRole --policy-arn arn:aws:iam::aws:policy/AWSElasticBeanstalkManagedUpdatesCustomerRolePolicy | Out-Null
   Write-Host "    created $svcRole"; Start-Sleep 10
+} else {
+  AwsMust iam update-assume-role-policy --role-name $svcRole --policy-document $trust | Out-Null
 }
+AwsMust iam attach-role-policy --role-name $svcRole --policy-arn arn:aws:iam::aws:policy/service-role/AWSElasticBeanstalkEnhancedHealth | Out-Null
+AwsMust iam attach-role-policy --role-name $svcRole --policy-arn arn:aws:iam::aws:policy/AWSElasticBeanstalkManagedUpdatesCustomerRolePolicy | Out-Null
 Ok "service role $svcRole"
 
 # ---------------------------------------------------------------- 3. EB application + environment
